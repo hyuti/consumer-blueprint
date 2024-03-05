@@ -1,0 +1,25 @@
+APP:
+  NAME: consumer-golang-template
+  DEBUG: false
+  WORKER: 1
+
+KAFKA:
+  BROKER:
+  WORKERS: 1000
+  TOPIC: topic
+  TOPIC_RETRY:
+  TOPIC_DLQ:
+
+  USERNAME:
+  PASSWORD:
+  SECURITY_PROTOCOL: SASL_PLAINTEXT
+  SASL_MECHANISMS: PLAIN
+
+LOG:
+  LEVEL: info
+  FILE_PATH: tmp/log
+
+TELEGRAM:
+  TOKEN:
+  CHAT_ID:
+  FAIL_SILENTLY: true

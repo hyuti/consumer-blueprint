@@ -11,7 +11,9 @@ func registerTopics() {
 	// register topics here
 	h1 := usecase.NewUseCase(app.Logger())
 
-	app.KafMan().RegisterTopic(app.Cfg().Kafka.Topic, kafka.NewFreeConsumerAdapter(h1))
+	registra := app.KafMan()
+
+	registra.RegisterTopic(app.Cfg().Kafka.Topic, kafka.NewFreeConsumerAdapter(h1))
 }
 
 func main() {

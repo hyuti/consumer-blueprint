@@ -48,7 +48,7 @@ Each goroutine will be spawned on demand which means goroutine spawned as soon a
 Add more use cases (handlers) in the usecase folder. Each use case represents a topic the use case is responsible for and must implement Consumer interface with a well-defined model which defined the message format of a topic.
 You can learn it by finding an example in the template. You must register a topic for that particular use case in ``` main.go ``` ( right after you finished writing logics for an use case ). For example:
 ```go
-c.RegisterTopic(cfg.Kafka.Topic, kafka.NewFreeConsumerAdapter(h1))
+registra.RegisterTopic(cfg.Kafka.Topic, kafka.NewFreeConsumerAdapter(h1))
 ```
 But don't forget to initialize that use case before registering handler.
 ```go

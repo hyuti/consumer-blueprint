@@ -89,8 +89,9 @@ func (s *Manager) WithRetries(w int) {
 	s.retries = w
 }
 
-func (s *Manager) WithChanResult(ch chan Result) {
-	s.chanResult = ch
+func (s *Manager) WithChanResult() chan Result {
+	s.chanResult = make(chan Result)
+	return s.chanResult
 }
 
 func (s *Manager) RegisterTopic(topic string, handler Consumer[*payload]) {
@@ -105,7 +106,14 @@ func (s *Manager) SubscribeTopics() error {
 	return s.reader.SubscribeTopics(s.topics, nil)
 }
 
-func (s *Manager) Run() {
+func (s *Manager) Run() error {
+	if err := s.SubscribeTopics(); err != nil {
+		return err
+	}
+
+	if s.chanResult == nil {
+		_ = s.WithChanResult()
+	}
 	s.bus = make(chan *payload, 1)
 	s.workerPool = make(chan struct{}, s.workers)
 
@@ -126,9 +134,6 @@ func (s *Manager) Run() {
 			}
 			c := ctx.WithCtxID(ctx.New())
 			if err != nil {
-				if s.chanResult == nil {
-					continue
-				}
 				s.chanResult <- Result{
 					err: fmt.Errorf("%s: %w", s.groupID, err),
 					ctx: c,
@@ -136,9 +141,6 @@ func (s *Manager) Run() {
 				continue
 			}
 			if m.TopicPartition.Topic == nil {
-				if s.chanResult == nil {
-					continue
-				}
 				s.chanResult <- Result{
 					err: errors.New("topic expected not to be empty"),
 					ctx: c,
@@ -153,6 +155,7 @@ func (s *Manager) Run() {
 		}
 	}
 	s.wg.Wait()
+	return nil
 }
 func (s *Manager) populateWorkers() {
 	sigchan := make(chan os.Signal, 1)
@@ -174,9 +177,6 @@ func (s *Manager) populateWorkers() {
 					c := ctx.WithCtxID(ctx.New())
 					err := s.recoverIfPanic(c, m)
 					if err == nil {
-						if s.chanResult == nil {
-							return
-						}
 						s.chanResult <- Result{
 							err:   nil,
 							ctx:   c,
@@ -253,17 +253,16 @@ func (s *Manager) retryIfFail(ctx context.Context, msg *payload) error {
 
 func (s *Manager) recoverIfPanic(ctx context.Context, msg *payload) error {
 	defer func() {
-		if r := recover(); r != nil {
-			if s.chanResult == nil {
-				return
-			}
-			s.chanResult <- Result{
-				err:   fmt.Errorf("recovering from a panic: \n%v", string(debug.Stack())),
-				ctx:   ctx,
-				msg:   msg.rawValue,
-				topic: msg.topic,
-				value: msg.value,
-			}
+		r := recover()
+		if r == nil {
+			return
+		}
+		s.chanResult <- Result{
+			err:   fmt.Errorf("recovering from a panic: \n%v", string(debug.Stack())),
+			ctx:   ctx,
+			msg:   msg.rawValue,
+			topic: msg.topic,
+			value: msg.value,
 		}
 	}()
 	return s.retryIfFail(ctx, msg)

@@ -5,6 +5,8 @@ import (
 	"fmt"
 	builtIn "github.com/confluentinc/confluent-kafka-go/kafka"
 	"github.com/hyuti/Consumer-Golang-Template/config"
+	"github.com/hyuti/Consumer-Golang-Template/pkg/gru"
+	"github.com/hyuti/Consumer-Golang-Template/pkg/grukafka"
 	"github.com/hyuti/Consumer-Golang-Template/pkg/kafka"
 	"github.com/hyuti/Consumer-Golang-Template/pkg/logger"
 	"github.com/hyuti/Consumer-Golang-Template/pkg/model"
@@ -18,6 +20,9 @@ const serviceKey = "service-name"
 var (
 	ErrLoggerEmpty = errors.New("logger expected not to be empty")
 	ErrCfgEmpty    = errors.New("config expected not to be empty")
+	ErrKafkaEmpty  = errors.New("kafka expected not to be empty")
+	ErrTeleEmpty   = errors.New("telegram expected not to be empty")
+	ErrProdEmpty   = errors.New("producer expected not to be empty")
 )
 var (
 	mutex sync.Mutex
@@ -29,6 +34,8 @@ type App struct {
 	cfg    *config.Config
 	logger *slog.Logger
 	tele   *telegram.Tele
+	guru   *gru.Gru
+	kafMan *kafka.Manager
 }
 
 func SharedKafkaConfigs(
@@ -75,6 +82,12 @@ func Init() error {
 	if err := WithProd(); err != nil {
 		return err
 	}
+	if err := WithKafMan(); err != nil {
+		return err
+	}
+	if err := WithGru(); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -91,7 +104,7 @@ func WithProd() error {
 		)
 	})
 	if err != nil {
-		return fmt.Errorf("%w :unable to init producer", err)
+		return fmt.Errorf("cannot init producer: %v", err)
 	}
 	prod.RegisterTopic(model.Model{}.Name(), app.cfg.Kafka.Topic)
 	app.prod = prod
@@ -101,7 +114,7 @@ func WithProd() error {
 func WithConfig() error {
 	cfg, err := config.New()
 	if err != nil {
-		return fmt.Errorf("%w :unable to init config", err)
+		return fmt.Errorf("cannot init config: %v", err)
 	}
 	app.cfg = cfg
 	return nil
@@ -134,10 +147,77 @@ func WithTele() error {
 		},
 	)
 	if err != nil {
-		return fmt.Errorf("%w :unable to init telegram", err)
+		return fmt.Errorf("cannot init telegram: %v", err)
 	}
 	return nil
 }
+
+func WithGru() error {
+	if app.cfg == nil {
+		return ErrCfgEmpty
+	}
+	if app.kafMan == nil {
+		return ErrKafkaEmpty
+	}
+	if app.tele == nil {
+		return ErrTeleEmpty
+	}
+	if app.logger == nil {
+		return ErrLoggerEmpty
+	}
+
+	app.guru = gru.New(app.kafMan)
+	app.guru.WithLogger(Logger())
+	app.guru.WithAsyncBeforeRun(func() {
+		grukafka.RunAdapter(app.guru.WithChanResult(), app.kafMan.WithChanResult())
+	})
+	app.guru.WithOnErr(func(result gru.Result) {
+		go func() {
+			e, ok := telegram.ConsiderErrShouldBeSent(result.Error(), Cfg().App.Name, result.Topic(), result.Value())
+			if !ok {
+				return
+			}
+			_ = Tele().SendWithTeleMsg(e)
+		}()
+	})
+	return nil
+}
+func WithKafMan() error {
+	if app.cfg == nil {
+		return ErrCfgEmpty
+	}
+	if app.prod == nil {
+		return ErrProdEmpty
+	}
+
+	c, err := kafka.NewManager(
+		fmt.Sprintf("%v.consumer", Cfg().App.Name),
+		Cfg().Kafka.Broker,
+		func(cf *builtIn.ConfigMap) error {
+			return SharedKafkaConfigs(cf,
+				Cfg().Kafka.Username,
+				Cfg().Kafka.Password,
+				Cfg().Kafka.Protocol,
+				Cfg().Kafka.SaslMechanisms)
+		},
+	)
+	if err != nil {
+		return fmt.Errorf("cannot init consumer: %v", err)
+	}
+	c.WithWorker(Cfg().Kafka.Workers)
+
+	c.WithProducer(Prod())
+	if Cfg().Kafka.TopicRetry != "" {
+		c.WithRetryTopic(Cfg().Kafka.TopicRetry, 2)
+	}
+	if Cfg().Kafka.TopicDLQ != "" {
+		c.WithDLQTopic(Cfg().Kafka.TopicDLQ)
+	}
+
+	app.kafMan = c
+	return nil
+}
+
 func Logger() *slog.Logger {
 	mutex.Lock()
 	defer mutex.Unlock()
@@ -157,4 +237,14 @@ func Cfg() *config.Config {
 	mutex.Lock()
 	defer mutex.Unlock()
 	return app.cfg
+}
+func KafMan() *kafka.Manager {
+	mutex.Lock()
+	defer mutex.Unlock()
+	return app.kafMan
+}
+func Gru() *gru.Gru {
+	mutex.Lock()
+	defer mutex.Unlock()
+	return app.guru
 }

@@ -1,5 +1,5 @@
-# Consumer-Golang-Template
-Boost-up process with this template.
+# consumer blueprint
+A source code template shadowed by Clean Architecture featuring in EDA (Event Driven Architecture) systems.
 
 ## Getting started
 

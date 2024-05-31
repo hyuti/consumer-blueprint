@@ -22,5 +22,8 @@ func main() {
 	}
 
 	registerTopics()
-	_ = app.Gru().Run()
+
+	if err := app.Gru().Run(); err != nil {
+		log.Fatalln(err)
+	}
 }

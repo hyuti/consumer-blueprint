@@ -21,10 +21,8 @@ type Gru struct {
 }
 
 func New(broker Broker) *Gru {
-	l := slog.Default()
 	return &Gru{
 		broker: broker,
-		logger: l,
 	}
 }
 
@@ -48,6 +46,9 @@ func (g *Gru) Run() error {
 	}
 	if g.onErr == nil {
 		g.onErr = func(_ Result) {}
+	}
+	if g.logger == nil {
+		g.logger = slog.Default()
 	}
 
 	var wg sync.WaitGroup

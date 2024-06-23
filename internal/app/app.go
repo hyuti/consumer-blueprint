@@ -16,6 +16,7 @@ var (
 	app   *App
 )
 
+// TODO: add compiler checker if a specific attribute not initilized but listed, same as one as the stringer pkg did
 type App struct {
 	prod   *kafka.Producer
 	cfg    *config.Config

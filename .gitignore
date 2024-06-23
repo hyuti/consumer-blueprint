@@ -24,3 +24,4 @@ tmp/
 venv/
 
 .idea/
+.DS_Store

@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/confluentinc/confluent-kafka-go/kafka"
-	"github.com/hyuti/Consumer-Golang-Template/pkg/ctx"
+	"github.com/hyuti/consumer-blueprint/pkg/ctx"
 	"os"
 	"os/signal"
 	"runtime/debug"

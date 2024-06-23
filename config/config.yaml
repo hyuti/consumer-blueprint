@@ -1,5 +1,5 @@
 APP:
-  NAME: consumer-golang-template
+  NAME: consumer-blueprint
   DEBUG: false
   WORKER: 1
 

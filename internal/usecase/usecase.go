@@ -2,8 +2,8 @@ package usecase
 
 import (
 	"context"
-	"github.com/hyuti/Consumer-Golang-Template/pkg/kafka"
-	"github.com/hyuti/Consumer-Golang-Template/pkg/model"
+	"github.com/hyuti/consumer-blueprint/pkg/kafka"
+	"github.com/hyuti/consumer-blueprint/pkg/model"
 	"golang.org/x/exp/slog"
 )
 

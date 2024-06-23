@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"github.com/confluentinc/confluent-kafka-go/kafka"
-	"github.com/hyuti/Consumer-Golang-Template/pkg/tool"
+	"github.com/hyuti/consumer-blueprint/pkg/tool"
 )
 
 type (

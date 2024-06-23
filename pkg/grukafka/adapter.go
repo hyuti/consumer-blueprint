@@ -1,8 +1,8 @@
 package grukafka
 
 import (
-	"github.com/hyuti/Consumer-Golang-Template/pkg/gru"
-	"github.com/hyuti/Consumer-Golang-Template/pkg/kafka"
+	"github.com/hyuti/consumer-blueprint/pkg/gru"
+	"github.com/hyuti/consumer-blueprint/pkg/kafka"
 	"os"
 	"os/signal"
 	"syscall"

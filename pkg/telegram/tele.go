@@ -3,7 +3,7 @@ package telegram
 import (
 	"errors"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
-	"github.com/hyuti/Consumer-Golang-Template/pkg/tool"
+	"github.com/hyuti/consumer-blueprint/pkg/tool"
 	"html/template"
 )
 

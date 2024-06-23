@@ -1,11 +1,11 @@
 run:
-	air -c ./cmd/consumer/.air.toml
+	air -c ./.air.toml
 
 unittest:
 	go test ./... -v
 
 build:
-	docker build . --tag consumer-golang-template
+	docker build . --tag consumer-blueprint
 
 containerrun:
-	docker run consumer-golang-template
+	docker run consumer-blueprint

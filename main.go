@@ -1,11 +1,17 @@
 package main
 
 import (
-	"github.com/hyuti/Consumer-Golang-Template/internal/app"
-	"github.com/hyuti/Consumer-Golang-Template/internal/usecase"
-	"github.com/hyuti/Consumer-Golang-Template/pkg/kafka"
+	"github.com/hyuti/consumer-blueprint/internal/app"
+	"github.com/hyuti/consumer-blueprint/internal/usecase"
+	"github.com/hyuti/consumer-blueprint/pkg/kafka"
 	"log"
 )
+
+func init() {
+	if err := app.Init(); err != nil {
+		log.Fatalln(err)
+	}
+}
 
 func registerTopics() {
 	// register topics here
@@ -17,10 +23,6 @@ func registerTopics() {
 }
 
 func main() {
-	if err := app.Init(); err != nil {
-		log.Fatalln(err)
-	}
-
 	registerTopics()
 
 	if err := app.Gru().Run(); err != nil {

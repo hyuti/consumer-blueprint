@@ -21,7 +21,7 @@ pre-commit install
 
 Change ```config.yaml``` to an appropriate configuration.
 
-Change ```consumer-golang-template``` to a specific name
+Change ```consumer-blueprint``` to a specific name
 
 Install dependency
 ```shell

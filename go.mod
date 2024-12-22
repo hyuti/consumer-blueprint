@@ -1,6 +1,6 @@
 module github.com/hyuti/consumer-blueprint
 
-go 1.20
+go 1.22.7
 
 require (
 	github.com/bufbuild/protovalidate-go v0.6.0

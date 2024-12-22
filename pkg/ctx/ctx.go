@@ -20,6 +20,11 @@ func DefaultCtxIDGenerator() {
 		return uuid.NewString()
 	})
 }
+
+func IDGenerator() CtxIDGeneratorType {
+	return ctxIDGenerator
+}
+
 func WithCtxIDGenerator(gen CtxIDGeneratorType) {
 	mutex.Lock()
 	defer mutex.Unlock()
@@ -27,12 +32,10 @@ func WithCtxIDGenerator(gen CtxIDGeneratorType) {
 }
 
 func WithCtxID(ctx context.Context) context.Context {
-	mutex.Lock()
-	defer mutex.Unlock()
-	if ctxIDGenerator == nil {
+	if IDGenerator() == nil {
 		DefaultCtxIDGenerator()
 	}
-	return SetCtxID(ctx, ctxIDGenerator())
+	return SetCtxID(ctx, IDGenerator()())
 }
 
 func GetCtxID(ctx context.Context) string {

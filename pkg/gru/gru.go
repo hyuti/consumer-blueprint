@@ -91,8 +91,8 @@ func (g *Gru) Run() error {
 				"failed",
 				"err", result.Error(),
 				"topic", result.Topic(),
-				"payload", v)
-
+				"chain", result.Chain(),
+			)
 			g.onErr(result)
 		case <-sigchan:
 			close(g.ch)

@@ -1,23 +1,18 @@
 package app
 
 import (
-	"errors"
 	"fmt"
+	"github.com/hyuti/consumer-blueprint/config"
 	"github.com/hyuti/consumer-blueprint/pkg/telegram"
 )
 
-var ErrTeleEmpty = errors.New("telegram expected not to be empty")
-
-func WithTele() (*telegram.Tele, error) {
-	if app.cfg == nil {
-		return nil, ErrCfgEmpty
-	}
+func WithTele(cfg *config.Config) (*telegram.Tele, error) {
 	t, err := telegram.New(
 		&telegram.TeleCfg{
-			Token:        app.cfg.Telegram.Token,
-			ChatID:       app.cfg.Telegram.ChatID,
-			Debug:        app.cfg.App.Debug,
-			FailSilently: app.cfg.Telegram.FailSilently,
+			Token:        cfg.Telegram.Token,
+			ChatID:       cfg.Telegram.ChatID,
+			Debug:        cfg.App.Debug,
+			FailSilently: cfg.Telegram.FailSilently,
 		},
 	)
 	if err != nil {

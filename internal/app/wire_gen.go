@@ -13,31 +13,21 @@ func initializeApp() (*App, error) {
 	if err != nil {
 		return nil, err
 	}
-	logger, err := WithLogger()
+	logger, err := WithLogger(config)
 	if err != nil {
 		return nil, err
 	}
-	tele, err := WithTele()
+	manager, err := WithKafMan(config)
 	if err != nil {
 		return nil, err
 	}
-	producer, err := WithProd()
-	if err != nil {
-		return nil, err
-	}
-	manager, err := WithKafMan()
-	if err != nil {
-		return nil, err
-	}
-	gru, err := WithGru()
+	gru, err := WithGru(manager, logger)
 	if err != nil {
 		return nil, err
 	}
 	appApp := &App{
 		cfg:    config,
 		logger: logger,
-		tele:   tele,
-		prod:   producer,
 		kafMan: manager,
 		guru:   gru,
 	}

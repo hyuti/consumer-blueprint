@@ -9,16 +9,12 @@ func initializeApp() (*App, error) {
 	wire.Build(
 		WithConfig,
 		WithLogger,
-		WithTele,
-		WithProd,
 		WithKafMan,
 		WithGru,
 		wire.Struct(
 			new(App),
 			"cfg",
 			"logger",
-			"tele",
-			"prod",
 			"kafMan",
 			"guru",
 		),

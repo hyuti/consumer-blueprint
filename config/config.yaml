@@ -1,12 +1,12 @@
 APP:
   NAME: consumer-blueprint
-  DEBUG: false
+  DEBUG: true
   WORKER: 1
 
 KAFKA:
-  BROKER:
-  WORKERS: 1000
-  TOPIC: topic
+  BROKER: localhost:9092
+  WORKERS: 1
+  TOPIC: consumer-blueprint
   TOPIC_RETRY:
   TOPIC_DLQ:
 
@@ -16,10 +16,5 @@ KAFKA:
   SASL_MECHANISMS: PLAIN
 
 LOG:
-  LEVEL: info
+  LEVEL: debug
   FILE_PATH: tmp/log
-
-TELEGRAM:
-  TOKEN:
-  CHAT_ID:
-  FAIL_SILENTLY: true

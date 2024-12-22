@@ -8,6 +8,8 @@ import (
 	"syscall"
 )
 
+var _ gru.Broker = (*kafka.Manager)(nil)
+
 func RunAdapter(guru chan gru.Result, kafka chan kafka.Result) {
 	sigchan := make(chan os.Signal, 1)
 	signal.Notify(sigchan, syscall.SIGINT, syscall.SIGTERM)

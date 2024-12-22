@@ -6,9 +6,10 @@ import (
 	"fmt"
 	"github.com/confluentinc/confluent-kafka-go/kafka"
 	"github.com/hyuti/consumer-blueprint/pkg/ctx"
+	pkgerr "github.com/hyuti/consumer-blueprint/pkg/error"
 	"os"
 	"os/signal"
-	"runtime/debug"
+	"runtime"
 	"sync"
 	"syscall"
 )
@@ -85,6 +86,7 @@ func (s *Manager) WithProducer(p *Producer) {
 func (s *Manager) WithWorker(w int) {
 	s.workers = w
 }
+
 func (s *Manager) WithRetries(w int) {
 	s.retries = w
 }
@@ -187,7 +189,7 @@ func (s *Manager) populateWorkers() {
 						return
 					}
 					s.chanResult <- Result{
-						err:   fmt.Errorf("%s: %w", s.groupID, err),
+						err:   err,
 						ctx:   c,
 						msg:   m.rawValue,
 						topic: m.topic,
@@ -221,8 +223,6 @@ func (s *Manager) populateWorkers() {
 						})
 						return
 					}
-
-					_ = s.writer.ProduceBytes(m.rawValue, m.topic)
 				}(pl)
 			}
 		}
@@ -251,21 +251,37 @@ func (s *Manager) retryIfFail(ctx context.Context, msg *payload) error {
 	return errors.Join(errs...)
 }
 
-func (s *Manager) recoverIfPanic(ctx context.Context, msg *payload) error {
+func (s *Manager) recoverIfPanic(ctx context.Context, msg *payload) (errConsumer error) {
 	defer func() {
 		r := recover()
 		if r == nil {
 			return
 		}
-		s.chanResult <- Result{
-			err:   fmt.Errorf("recovering from a panic: \n%v", string(debug.Stack())),
-			ctx:   ctx,
-			msg:   msg.rawValue,
-			topic: msg.topic,
-			value: msg.value,
+		err, ok := r.(error)
+		if !ok {
+			err = errors.New("error internal server")
+			errMsg, ok := r.(string)
+			if ok {
+				err = errors.New(errMsg)
+			}
 		}
+		chain := make([]string, 0, 2)
+		for skip := 2; skip < 4; skip += 1 {
+			pc, file, line, ok := runtime.Caller(skip)
+			if !ok {
+				break
+			}
+			chain = append(chain, fmt.Sprintf(
+				"%s (%s:%d)",
+				runtime.FuncForPC(pc).Name(),
+				file,
+				line,
+			))
+		}
+		errConsumer = pkgerr.ErrInternalServer(err, pkgerr.WithChainOpt(chain...))
 	}()
-	return s.retryIfFail(ctx, msg)
+	errConsumer = s.retryIfFail(ctx, msg)
+	return errConsumer
 }
 
 func (s *Manager) close() error {

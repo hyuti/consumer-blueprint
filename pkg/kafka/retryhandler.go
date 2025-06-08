@@ -12,8 +12,8 @@ type retryConsumer struct {
 	retries  int
 }
 type MsgRetry struct {
-	Topic   string `json:"topic"`
 	Payload any    `json:"payload"`
+	Topic   string `json:"topic"`
 }
 
 var _ MsgNameType = (*MsgRetry)(nil)

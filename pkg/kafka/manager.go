@@ -4,30 +4,31 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/confluentinc/confluent-kafka-go/kafka"
-	"github.com/hyuti/consumer-blueprint/pkg/ctx"
-	pkgerr "github.com/hyuti/consumer-blueprint/pkg/error"
 	"os"
 	"os/signal"
 	"runtime"
 	"sync"
 	"syscall"
+
+	"github.com/confluentinc/confluent-kafka-go/kafka"
+	ctxPkg "github.com/hyuti/consumer-blueprint/pkg/ctx"
+	pkgerr "github.com/hyuti/consumer-blueprint/pkg/error"
 )
 
 type Manager struct {
-	writer     *Producer
+	dlqTopic   *string
 	reader     *kafka.Consumer
-	groupID    string
-	workers    int
-	retries    int
+	workerPool chan struct{}
+	bus        chan *payload
 	handlers   map[string]Consumer[*payload]
+	writer     *Producer
+	chanResult chan Result
+	retryTopic *string
+	groupID    string
 	topics     []string
 	wg         sync.WaitGroup
-	retryTopic *string
-	dlqTopic   *string
-	chanResult chan Result
-	bus        chan *payload
-	workerPool chan struct{}
+	retries    int
+	workers    int
 }
 
 func NewManager(
@@ -134,7 +135,7 @@ func (s *Manager) Run() error {
 			if err != nil && err.(kafka.Error).Code() == kafka.ErrTimedOut {
 				continue
 			}
-			c := ctx.WithCtxID(ctx.New())
+			c := ctxPkg.WithCtxID(ctxPkg.New())
 			if err != nil {
 				s.chanResult <- Result{
 					err: fmt.Errorf("%s: %w", s.groupID, err),
@@ -176,7 +177,7 @@ func (s *Manager) populateWorkers() {
 						s.wg.Done()
 						<-s.workerPool
 					}()
-					c := ctx.WithCtxID(ctx.New())
+					c := ctxPkg.WithCtxID(ctxPkg.New())
 					err := s.recoverIfPanic(c, m)
 					if err == nil {
 						s.chanResult <- Result{

@@ -1,11 +1,12 @@
 package gru
 
 import (
-	"golang.org/x/exp/slog"
 	"os"
 	"os/signal"
 	"sync"
 	"syscall"
+
+	"golang.org/x/exp/slog"
 )
 
 type Broker interface {
@@ -15,8 +16,8 @@ type Broker interface {
 type Gru struct {
 	broker         Broker
 	logger         *slog.Logger
-	onErr          func(Result)
-	ch             chan Result
+	onErr          func(*Result)
+	ch             chan *Result
 	asyncBeforeRun []func()
 }
 
@@ -29,11 +30,11 @@ func New(broker Broker) *Gru {
 func (g *Gru) WithLogger(l *slog.Logger) {
 	g.logger = l
 }
-func (g *Gru) WithOnErr(onErr func(Result)) {
+func (g *Gru) WithOnErr(onErr func(*Result)) {
 	g.onErr = onErr
 }
-func (g *Gru) WithChanResult() chan Result {
-	g.ch = make(chan Result)
+func (g *Gru) WithChanResult() chan *Result {
+	g.ch = make(chan *Result)
 	return g.ch
 }
 func (g *Gru) WithAsyncBeforeRun(runs ...func()) {
@@ -45,7 +46,7 @@ func (g *Gru) Run() error {
 		_ = g.WithChanResult()
 	}
 	if g.onErr == nil {
-		g.onErr = func(_ Result) {}
+		g.onErr = func(_ *Result) {}
 	}
 	if g.logger == nil {
 		g.logger = slog.Default()

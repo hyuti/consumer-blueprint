@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"context"
+
 	"github.com/hyuti/consumer-blueprint/pkg/kafka"
 	"github.com/hyuti/consumer-blueprint/pkg/model"
 	"golang.org/x/exp/slog"
@@ -14,7 +15,6 @@ type uc struct {
 var _ kafka.Consumer[*model.Model] = (*uc)(nil)
 
 func (u *uc) Consume(ctx context.Context, msg *model.Model) error {
-	panic("implement me")
 	return nil
 }
 

@@ -2,12 +2,14 @@ package app
 
 import (
 	"fmt"
+
 	builtIn "github.com/confluentinc/confluent-kafka-go/kafka"
 	"github.com/hyuti/consumer-blueprint/config"
 	"github.com/hyuti/consumer-blueprint/pkg/kafka"
 	"github.com/hyuti/consumer-blueprint/pkg/model"
 )
 
+//nolint:staticcheck // QF1008 prefer clear references
 func WithProd(cfg *config.Config) (*kafka.Producer, error) {
 	prod, err := kafka.NewProducer(cfg.Kafka.Broker, func(configMap *builtIn.ConfigMap) error {
 		return SharedKafkaConfigs(configMap,

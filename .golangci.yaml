@@ -1,0 +1,69 @@
+version: "2"
+
+linters:
+  default: none
+  enable:
+    - bodyclose
+    - copyloopvar
+    - errcheck
+    - gocheckcompilerdirectives
+    - goconst
+    - gocritic
+    - gocyclo
+    - gosec
+    - govet
+    - misspell
+    - nakedret
+    - noctx
+    - nolintlint
+    - staticcheck
+    - whitespace
+
+  settings:
+    goconst:
+      min-len: 2
+      min-occurrences: 3
+    gocritic:
+      enable-all: true
+      disabled-checks:
+        - sloppyReassign
+        - tooManyResultsChecker
+    gocyclo:
+      min-complexity: 50
+    govet:
+      enable-all: true
+      disable:
+        - shadow
+    errorlint:
+      asserts: false
+    misspell:
+      locale: US
+      ignore-rules:
+        - "importas"
+    nolintlint:
+      require-specific: true
+
+  exclusions:
+    presets:
+      - comments
+      - std-error-handling
+      - common-false-positives
+      - legacy
+    rules:
+      - path: (.+)_test\.go
+        linters:
+          - gocyclo
+          - errcheck
+          - gosec
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    gofmt:
+      rewrite-rules:
+        - pattern: 'interface{}'
+          replacement: 'any'
+    goimports:
+      local-prefixes:
+        - github.com/golangci/golangci-lint/v2

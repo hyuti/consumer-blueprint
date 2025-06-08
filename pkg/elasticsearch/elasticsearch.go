@@ -5,9 +5,9 @@ import (
 )
 
 type Cfg struct {
-	Addresses []string
 	Username  string
 	Password  string
+	Addresses []string
 }
 
 func New(

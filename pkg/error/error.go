@@ -6,6 +6,7 @@ import (
 	"strings"
 )
 
+//nolint:staticcheck // ST1012 its label for classified purpose
 var (
 	LabelErrValidatingRequest   = errors.New("")
 	LabelErrInternalServer      = errors.New("")
@@ -52,10 +53,10 @@ var ErrFuncTriggerOpt = func(nameFunc string) ErrInternalServerOpt {
 type Error struct {
 	error
 	label    error
-	nameFunc string
 	payload  any
-	chain    []string
 	extra    map[string]any
+	nameFunc string
+	chain    []string
 }
 
 func (e *Error) Unwrap() error {

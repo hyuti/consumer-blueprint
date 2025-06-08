@@ -2,11 +2,12 @@ package logger
 
 import (
 	"context"
-	ctx2 "github.com/hyuti/consumer-blueprint/pkg/ctx"
-	"golang.org/x/exp/slog"
 	"io"
 	"os"
 	"time"
+
+	ctx2 "github.com/hyuti/consumer-blueprint/pkg/ctx"
+	"golang.org/x/exp/slog"
 )
 
 func FileAndStdLogger(path string, opts ...func(options *slog.HandlerOptions)) *slog.Logger {
@@ -51,7 +52,7 @@ func WithServiceName(l *slog.Logger, srvKey, srvName string) *slog.Logger {
 }
 func WithCtxID(l *slog.Logger) *slog.Logger {
 	h := WithCtxAttrs(l.Handler(), func(ctx context.Context) slog.Attr {
-		return slog.String(ctx2.CtxIDKey, ctx2.GetCtxID(ctx))
+		return slog.String(string(ctx2.CtxIDKey), ctx2.GetCtxID(ctx))
 	})
 	return slog.New(h)
 }
@@ -86,7 +87,7 @@ func WithFileWriter(w io.Writer, path string) io.Writer {
 	logFile, err := os.OpenFile(
 		path,
 		os.O_APPEND|os.O_CREATE|os.O_WRONLY,
-		0664,
+		0o664,
 	)
 	if err != nil {
 		panic(err)

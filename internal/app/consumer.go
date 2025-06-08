@@ -2,11 +2,13 @@ package app
 
 import (
 	"fmt"
+
 	builtIn "github.com/confluentinc/confluent-kafka-go/kafka"
 	"github.com/hyuti/consumer-blueprint/config"
 	"github.com/hyuti/consumer-blueprint/pkg/kafka"
 )
 
+//nolint:staticcheck // QF1008 prefer clear references
 func WithKafMan(cfg *config.Config) (*kafka.Manager, error) {
 	c, err := kafka.NewManager(
 		fmt.Sprintf("%v.consumer", cfg.App.Name),

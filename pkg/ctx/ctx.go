@@ -2,11 +2,14 @@ package ctx
 
 import (
 	"context"
-	"github.com/google/uuid"
 	"sync"
+
+	"github.com/google/uuid"
 )
 
-const CtxIDKey = "context-id"
+type ctxKeyType string
+
+const CtxIDKey ctxKeyType = "context-id"
 
 type CtxIDGeneratorType func() string
 
@@ -16,9 +19,7 @@ var (
 )
 
 func DefaultCtxIDGenerator() {
-	WithCtxIDGenerator(func() string {
-		return uuid.NewString()
-	})
+	WithCtxIDGenerator(uuid.NewString)
 }
 
 func IDGenerator() CtxIDGeneratorType {

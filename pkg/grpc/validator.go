@@ -1,7 +1,7 @@
 package grpc
 
 import (
-	protovalidate "github.com/bufbuild/protovalidate-go"
+	"github.com/bufbuild/protovalidate-go"
 )
 
 var validator *protovalidate.Validator

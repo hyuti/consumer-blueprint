@@ -2,6 +2,7 @@ package grpc
 
 import (
 	"context"
+
 	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/logging"
 	"golang.org/x/exp/slog"
 )

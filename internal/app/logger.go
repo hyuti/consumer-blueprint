@@ -6,6 +6,7 @@ import (
 	"golang.org/x/exp/slog"
 )
 
+//nolint:staticcheck // QF1008 prefer clear references
 func WithLogger(cfg *config.Config) (*slog.Logger, error) {
 	l := logger.FileAndStdLogger(
 		cfg.FilePath,

@@ -1,12 +1,12 @@
 package app
 
 import (
+	"sync"
+
 	"github.com/hyuti/consumer-blueprint/config"
 	"github.com/hyuti/consumer-blueprint/pkg/gru"
 	"github.com/hyuti/consumer-blueprint/pkg/kafka"
-	"github.com/hyuti/consumer-blueprint/pkg/telegram"
 	"golang.org/x/exp/slog"
-	"sync"
 )
 
 const serviceKey = "service-name"
@@ -21,7 +21,6 @@ type App struct {
 	prod   *kafka.Producer
 	cfg    *config.Config
 	logger *slog.Logger
-	tele   *telegram.Tele
 	guru   *gru.Gru
 	kafMan *kafka.Manager
 }

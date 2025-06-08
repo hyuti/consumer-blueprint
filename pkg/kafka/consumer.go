@@ -3,6 +3,7 @@ package kafka
 import (
 	"context"
 	"encoding/json"
+
 	"github.com/confluentinc/confluent-kafka-go/kafka"
 	"github.com/hyuti/consumer-blueprint/pkg/tool"
 )
@@ -18,9 +19,9 @@ type (
 		handler Consumer[T]
 	}
 	payload struct {
-		rawValue []byte
-		topic    string
 		value    any
+		topic    string
+		rawValue []byte
 	}
 )
 

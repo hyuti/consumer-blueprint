@@ -14,7 +14,6 @@ func init() {
 	}
 }
 
-//nolint:staticcheck // QF1008 prefer clear references
 func registerTopics() {
 	// register topics here
 	h1 := usecase.NewUseCase(app.Logger())

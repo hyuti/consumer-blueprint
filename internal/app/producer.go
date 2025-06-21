@@ -9,7 +9,6 @@ import (
 	"github.com/hyuti/consumer-blueprint/pkg/model"
 )
 
-//nolint:staticcheck // QF1008 prefer clear references
 func WithProd(cfg *config.Config) (*kafka.Producer, error) {
 	prod, err := kafka.NewProducer(cfg.Kafka.Broker, func(configMap *builtIn.ConfigMap) error {
 		return SharedKafkaConfigs(configMap,

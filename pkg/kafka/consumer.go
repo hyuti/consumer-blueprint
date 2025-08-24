@@ -95,7 +95,6 @@ func (c *ProtobufConsumer[T]) Consume(ctx context.Context, msg []byte) error {
 	if err != nil {
 		err = pkgerr.ErrInternalServer(err,
 			pkgerr.WithPayloadOpt(msg),
-			pkgerr.WithChainOpt("c.Serialize"),
 			pkgerr.ErrFuncTriggerOpt("c.Serialize"))
 		return err
 	}
@@ -106,7 +105,6 @@ func (c *ProtobufConsumer[T]) Consume(ctx context.Context, msg []byte) error {
 		}
 		err = pkgerr.ErrInternalServer(err,
 			pkgerr.WithPayloadOpt(value),
-			pkgerr.WithChainOpt("c.handler.Consume"),
 			pkgerr.ErrFuncTriggerOpt("c.handler.Consume"))
 
 		return err

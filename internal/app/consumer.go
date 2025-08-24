@@ -25,12 +25,6 @@ func WithKafMan(cfg *config.Config) (*kafka.Manager, error) {
 	}
 	c.WithWorker(cfg.Kafka.Workers)
 
-	if cfg.Kafka.TopicRetry != "" {
-		c.WithRetryTopic(cfg.Kafka.TopicRetry, 2)
-	}
-	if cfg.Kafka.TopicDLQ != "" {
-		c.WithDLQTopic(cfg.Kafka.TopicDLQ)
-	}
 	return c, nil
 }
 

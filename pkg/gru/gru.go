@@ -103,3 +103,56 @@ func (g *Gru) Run() error {
 	}
 	return nil
 }
+
+// RunWeak depends on others to shut down. See Run for completely controlling shut down.
+func (g *Gru) RunWeak() error {
+	if g.ch == nil {
+		_ = g.WithChanResult()
+	}
+	if g.onErr == nil {
+		g.onErr = func(_ *Result) {}
+	}
+	if g.logger == nil {
+		g.logger = slog.Default()
+	}
+
+	var wg sync.WaitGroup
+	wg.Add(len(g.asyncBeforeRun))
+	for _, run := range g.asyncBeforeRun {
+		go func(f func()) {
+			defer wg.Done()
+			f()
+		}(run)
+	}
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		_ = g.broker.Run()
+	}()
+
+	g.logger.Info("Start listening...")
+	for result := range g.ch {
+		v := result.Value()
+		if v == nil {
+			v = string(result.Msg())
+		}
+		if result.Error() == nil {
+			g.logger.InfoContext(result.Ctx(),
+				"consumed",
+				"payload", v,
+				"topic", result.Topic())
+			continue
+		}
+		g.logger.ErrorContext(
+			result.Ctx(),
+			"failed",
+			"err", result.Error(),
+			"topic", result.Topic(),
+			"chain", result.Chain(),
+		)
+		g.onErr(result)
+	}
+	wg.Wait()
+	return nil
+}

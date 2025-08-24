@@ -14,12 +14,8 @@ var _ gru.Broker = (*kafka.Manager)(nil)
 func RunAdapter(guru chan *gru.Result, kafkaChan chan kafka.Result) {
 	sigchan := make(chan os.Signal, 1)
 	signal.Notify(sigchan, syscall.SIGINT, syscall.SIGTERM)
-	for run := true; run; {
-		select {
-		case r := <-kafkaChan:
-			guru <- gru.NewResult(r.Ctx(), r.Msg(), r.Error(), r.Topic(), r.Value())
-		case <-sigchan:
-			run = false
-		}
+	for r := range kafkaChan {
+		guru <- gru.NewResult(r.Ctx(), r.Msg(), r.Error(), r.Topic(), r.Value())
 	}
+	close(guru)
 }

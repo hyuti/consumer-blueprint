@@ -1,15 +1,13 @@
 # See https://pre-commit.com for more information
 # See https://pre-commit.com/hooks.html for more hooks
 repos:
-  - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v3.2.0
+  - repo: https://github.com/dnephin/pre-commit-golang
+    rev: v0.5.1
     hooks:
-      - id: check-added-large-files
-      - id: check-merge-conflict
-      - id: check-yaml
-      - id: end-of-file-fixer
-      - id: trailing-whitespace
-  - repo: meta
-    hooks:
-      - id: check-hooks-apply
-      - id: identity
+      - id: go-fmt
+      - id: go-vet
+      - id: go-imports
+      - id: go-mod-tidy
+      - id: golangci-lint
+      - id: go-unit-tests
+      - id: go-build

@@ -4,7 +4,7 @@ APP:
   WORKER: 1
 
 KAFKA:
-  BROKER: localhost:9092
+  BROKER: 127.0.0.1:9092
   WORKERS: 1
   TOPIC: consumer-blueprint
   TOPIC_RETRY:

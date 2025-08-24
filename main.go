@@ -19,14 +19,13 @@ func registerTopics() {
 	h1 := usecase.NewUseCase(app.Logger())
 
 	registra := app.KafMan()
-
-	registra.RegisterTopic(app.Cfg().Kafka.Topic, kafka.NewFreeConsumerAdapter(h1))
+	registra.RegisterTopic(app.Cfg().Kafka.Topic, kafka.NewJsonConsumer(h1))
 }
 
 func main() {
 	registerTopics()
 
-	if err := app.Gru().Run(); err != nil {
+	if err := app.Gru().RunWeak(); err != nil {
 		log.Fatalln(err)
 	}
 }

@@ -9,6 +9,7 @@ import (
 	"runtime"
 	"sync"
 	"syscall"
+	"time"
 
 	"github.com/confluentinc/confluent-kafka-go/kafka"
 	ctxPkg "github.com/hyuti/consumer-blueprint/pkg/ctx"
@@ -16,19 +17,22 @@ import (
 )
 
 type Manager struct {
-	dlqTopic   *string
-	reader     *kafka.Consumer
-	workerPool chan struct{}
-	bus        chan *payload
-	handlers   map[string]Consumer[*payload]
-	writer     *Producer
-	chanResult chan Result
-	retryTopic *string
-	groupID    string
-	topics     []string
-	wg         sync.WaitGroup
-	retries    int
-	workers    int
+	workerPool    sync.Pool
+	reader        *kafka.Consumer
+	workerCounter chan struct{}
+	bus           chan *payload
+	handlers      map[string]Consumer[[]byte]
+	writer        *Producer
+	chanResult    chan Result
+	retryTopic    *string
+	dlqTopic      *string
+	workerTable   map[string]*workerInfo
+	groupID       string
+	topics        []string
+	wg            sync.WaitGroup
+	retries       int
+	workers       int
+	workerTimeout time.Duration
 }
 
 func NewManager(
@@ -37,7 +41,7 @@ func NewManager(
 	opts ...func(*kafka.ConfigMap) error) (*Manager, error) {
 	cfg := &kafka.ConfigMap{
 		"group.id":             groupID,
-		"auto.offset.reset":    "earliest",
+		"auto.offset.reset":    "latest",
 		"bootstrap.servers":    broker,
 		"max.poll.interval.ms": 600000,
 	}
@@ -51,33 +55,17 @@ func NewManager(
 	if err != nil {
 		return nil, err
 	}
+
 	m := &Manager{
 		reader:   c,
 		groupID:  groupID,
-		workers:  10000,
-		handlers: map[string]Consumer[*payload]{},
+		workers:  100,
+		handlers: map[string]Consumer[[]byte]{},
+		workerPool: sync.Pool{New: func() any {
+			return new(workerInfo)
+		}},
 	}
-
 	return m, nil
-}
-func (s *Manager) WithRetryTopic(t string, retries int) {
-	h := NewRetryConsumer(s.handlers, retries)
-	s.RegisterTopic(t, NewConsumerAdapter(h))
-	s.retryTopic = &t
-	s.retries = 0
-
-	if s.writer != nil {
-		s.writer.RegisterTopic(MsgRetry{}.Name(), t)
-	}
-}
-
-// WithDLQTopic Register DeadLetterQueue topic
-func (s *Manager) WithDLQTopic(t string) {
-	if s.writer == nil {
-		return
-	}
-	s.dlqTopic = &t
-	s.writer.RegisterTopic(MsgErr{}.Name(), t)
 }
 
 func (s *Manager) WithProducer(p *Producer) {
@@ -92,14 +80,17 @@ func (s *Manager) WithRetries(w int) {
 	s.retries = w
 }
 
+func (s *Manager) WithWorkerTimeout(timeout time.Duration) {
+	s.workerTimeout = timeout
+}
+
 func (s *Manager) WithChanResult() chan Result {
-	s.chanResult = make(chan Result)
+	s.chanResult = make(chan Result, 1)
 	return s.chanResult
 }
 
-func (s *Manager) RegisterTopic(topic string, handler Consumer[*payload]) {
-	_, ok := s.handlers[topic]
-	if !ok {
+func (s *Manager) RegisterTopic(topic string, handler Consumer[[]byte]) {
+	if _, ok := s.handlers[topic]; !ok {
 		s.topics = append(s.topics, topic)
 	}
 	s.handlers[topic] = handler
@@ -117,8 +108,12 @@ func (s *Manager) Run() error {
 	if s.chanResult == nil {
 		_ = s.WithChanResult()
 	}
+	if s.workerTimeout == 0 {
+		s.workerTimeout = time.Minute
+	}
 	s.bus = make(chan *payload, 1)
-	s.workerPool = make(chan struct{}, s.workers)
+	s.workerCounter = make(chan struct{}, s.workers)
+	s.workerTable = make(map[string]*workerInfo, s.workers)
 
 	s.populateWorkers()
 	defer s.close()
@@ -126,6 +121,7 @@ func (s *Manager) Run() error {
 	sigchan := make(chan os.Signal, 1)
 	signal.Notify(sigchan, syscall.SIGINT, syscall.SIGTERM)
 
+	p := payload{}
 	for run := true; run; {
 		select {
 		case <-sigchan:
@@ -150,16 +146,22 @@ func (s *Manager) Run() error {
 				}
 				continue
 			}
-			p := payload{
-				rawValue: m.Value,
-				topic:    *m.TopicPartition.Topic,
-			}
+			p.rawValue = m.Value
+			p.topic = *m.TopicPartition.Topic
 			s.bus <- &p
 		}
 	}
-	s.wg.Wait()
 	return nil
 }
+
+type workerInfo struct {
+	ctx        context.Context
+	cancelFunc context.CancelFunc
+	ctxID      string
+	topic      string
+	rawValue   []byte
+}
+
 func (s *Manager) populateWorkers() {
 	sigchan := make(chan os.Signal, 1)
 	signal.Notify(sigchan, syscall.SIGINT, syscall.SIGTERM)
@@ -170,61 +172,64 @@ func (s *Manager) populateWorkers() {
 			case <-sigchan:
 				return
 			case pl := <-s.bus:
-				s.workerPool <- struct{}{}
+				s.workerCounter <- struct{}{}
+
+				c := ctxPkg.WithCtxID(ctxPkg.New())
+				c, cancel := context.WithTimeout(c, s.workerTimeout)
+				info := s.workerPool.Get().(*workerInfo)
+				info.ctx = c
+				info.rawValue = pl.rawValue
+				info.topic = pl.topic
+				info.ctxID = ctxPkg.GetCtxID(c)
+				info.cancelFunc = cancel
+				s.workerTable[info.ctxID] = info
 				s.wg.Add(1)
-				go func(m *payload) {
+				go func(rawValue []byte, topic, retry, deadLetterQueue string) {
 					defer func() {
+						cancel()
 						s.wg.Done()
-						<-s.workerPool
+						s.workerPool.Put(info)
+						delete(s.workerTable, info.ctxID)
+						<-s.workerCounter
 					}()
-					c := ctxPkg.WithCtxID(ctxPkg.New())
-					err := s.recoverIfPanic(c, m)
+					err := s.recoverIfPanic(c, info)
 					if err == nil {
 						s.chanResult <- Result{
 							err:   nil,
 							ctx:   c,
-							msg:   m.rawValue,
-							topic: m.topic,
-							value: m.value,
+							msg:   rawValue,
+							topic: topic,
 						}
 						return
 					}
 					s.chanResult <- Result{
 						err:   err,
 						ctx:   c,
-						msg:   m.rawValue,
-						topic: m.topic,
-						value: m.value,
-					}
-					retry := m.topic
-					if s.retryTopic != nil {
-						retry = *s.retryTopic
+						msg:   rawValue,
+						topic: topic,
 					}
 
-					if retry != m.topic {
-						if m.value == nil || s.writer == nil {
-							return
+					switch topic {
+					case topic:
+						if retry == "" || s.writer == nil {
+							break
 						}
 
 						_ = s.writer.Produce(MsgRetry{
-							Topic:   m.topic,
-							Payload: m.value,
+							Topic:   retry,
+							Payload: rawValue,
 						})
-						return
-					}
-
-					if s.dlqTopic != nil {
-						if m.value == nil || s.writer == nil {
-							return
+					case retry:
+						if deadLetterQueue == "" || s.writer == nil {
+							break
 						}
 
 						_ = s.writer.Produce(MsgErr{
-							Payload: m.value,
+							Payload: deadLetterQueue,
 							Err:     err.Error(),
 						})
-						return
 					}
-				}(pl)
+				}(pl.rawValue, pl.topic, pl.retry, pl.deadLetterQueue)
 			}
 		}
 	}
@@ -232,18 +237,18 @@ func (s *Manager) populateWorkers() {
 	go exe()
 }
 
-func (s *Manager) retryIfFail(ctx context.Context, msg *payload) error {
+func (s *Manager) retryIfFail(ctx context.Context, info *workerInfo) error {
 	retries := 0
 	if s.retries > 0 {
 		retries = s.retries
 	}
 	errs := make([]error, 0, retries)
 	for retry := 0; retry <= retries; retry += 1 {
-		handler, ok := s.handlers[msg.topic]
+		handler, ok := s.handlers[info.topic]
 		if !ok {
-			return fmt.Errorf("unable to find handler for %v topic", msg.topic)
+			return fmt.Errorf("unable to find handler for %v topic", info.topic)
 		}
-		err := handler.Consume(ctx, msg)
+		err := handler.Consume(ctx, info.rawValue)
 		if err == nil {
 			return nil
 		}
@@ -252,7 +257,7 @@ func (s *Manager) retryIfFail(ctx context.Context, msg *payload) error {
 	return errors.Join(errs...)
 }
 
-func (s *Manager) recoverIfPanic(ctx context.Context, msg *payload) (errConsumer error) {
+func (s *Manager) recoverIfPanic(ctx context.Context, info *workerInfo) (errConsumer error) {
 	defer func() {
 		r := recover()
 		if r == nil {
@@ -281,16 +286,25 @@ func (s *Manager) recoverIfPanic(ctx context.Context, msg *payload) (errConsumer
 		}
 		errConsumer = pkgerr.ErrInternalServer(err, pkgerr.WithChainOpt(chain...))
 	}()
-	errConsumer = s.retryIfFail(ctx, msg)
+	errConsumer = s.retryIfFail(ctx, info)
 	return errConsumer
 }
 
 func (s *Manager) close() error {
+	for _, worker := range s.workerTable {
+		worker.cancelFunc()
+	}
+	s.wg.Wait()
+
 	if s.bus != nil {
 		close(s.bus)
 	}
-	if s.workerPool != nil {
-		close(s.workerPool)
+	if s.workerCounter != nil {
+		close(s.workerCounter)
 	}
+	if s.chanResult != nil {
+		close(s.chanResult)
+	}
+
 	return s.reader.Close()
 }

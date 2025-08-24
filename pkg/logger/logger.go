@@ -61,9 +61,19 @@ func WithLevelOpt(level slog.Level) func(opt *slog.HandlerOptions) {
 		opt.Level = level
 	}
 }
+
 func WithTimeFormatOpt(format string) func(opt *slog.HandlerOptions) {
 	return func(opt *slog.HandlerOptions) {
+		var replacer func([]string, slog.Attr) slog.Attr
+		if opt.ReplaceAttr != nil {
+			replacer = opt.ReplaceAttr
+		}
+
 		opt.ReplaceAttr = func(groups []string, a slog.Attr) slog.Attr {
+			if replacer != nil {
+				a = replacer(groups, a)
+			}
+
 			if a.Key != slog.TimeKey {
 				return a
 			}
@@ -108,5 +118,5 @@ func NewJsonHandler(w io.Writer, opts ...func(options *slog.HandlerOptions)) slo
 	for _, o := range opts {
 		o(&opt)
 	}
-	return slog.NewJSONHandler(w, &opt)
+	return slog.NewTextHandler(w, &opt)
 }

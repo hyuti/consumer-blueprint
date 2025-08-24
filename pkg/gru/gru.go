@@ -139,17 +139,17 @@ func (g *Gru) RunWeak() error {
 		}
 		if result.Error() == nil {
 			g.logger.InfoContext(result.Ctx(),
-				"consumed",
+				"success",
 				"payload", v,
 				"topic", result.Topic())
 			continue
 		}
 		g.logger.ErrorContext(
 			result.Ctx(),
-			"failed",
-			"err", result.Error(),
+			result.Error().Error(),
 			"topic", result.Topic(),
 			"chain", result.Chain(),
+			"payload", v,
 		)
 		g.onErr(result)
 	}

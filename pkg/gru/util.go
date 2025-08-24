@@ -2,9 +2,6 @@ package gru
 
 import (
 	"context"
-	"errors"
-
-	pkgerr "github.com/hyuti/consumer-blueprint/pkg/error"
 )
 
 type Result struct {
@@ -12,6 +9,7 @@ type Result struct {
 	err   error
 	value any
 	topic string
+	chain string
 	msg   []byte
 }
 
@@ -36,19 +34,16 @@ func (s *Result) Value() any {
 }
 
 func (s *Result) Chain() string {
-	internalErr := new(pkgerr.Error)
-	if errors.As(s.err, &internalErr) {
-		return internalErr.Chain()
-	}
-	return ""
+	return s.chain
 }
 
-func NewResult(ctx context.Context, msg []byte, err error, topic string, value any) *Result {
+func NewResult(ctx context.Context, msg []byte, err error, topic, chain string, value any) *Result {
 	return &Result{
 		ctx:   ctx,
 		err:   err,
 		msg:   msg,
 		topic: topic,
 		value: value,
+		chain: chain,
 	}
 }

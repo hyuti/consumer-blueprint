@@ -12,6 +12,7 @@ type Producer struct {
 	topicMap map[string]string
 }
 
+// Produce for using this function you must register a topic beforehand with RegisterTopic. Otherwise, you can use ProduceBytes instead
 func (s *Producer) Produce(msg MsgNameType) error {
 	topic, ok := s.topicMap[msg.Name()]
 	if !ok {
@@ -38,8 +39,13 @@ func (s *Producer) ProduceBytes(b []byte, topic string) error {
 	return nil
 }
 
+// RegisterTopic f
 func (s *Producer) RegisterTopic(key, topic string) {
 	s.topicMap[key] = topic
+}
+
+func (s *Producer) Close() {
+	s.prod.Close()
 }
 
 func NewProducer(broker string, opts ...func(*kafka.ConfigMap) error) (*Producer, error) {

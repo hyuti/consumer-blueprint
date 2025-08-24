@@ -17,22 +17,22 @@ import (
 )
 
 type Manager struct {
-	workerPool    sync.Pool
-	reader        *kafka.Consumer
-	workerCounter chan struct{}
-	bus           chan *payload
-	handlers      map[string]Consumer[[]byte]
-	writer        *Producer
-	chanResult    chan Result
-	retryTopic    *string
-	dlqTopic      *string
-	workerTable   map[string]*workerInfo
-	groupID       string
-	topics        []string
-	wg            sync.WaitGroup
-	retries       int
-	workers       int
-	workerTimeout time.Duration
+	workerPool            sync.Pool
+	reader                *kafka.Consumer
+	workerCounter         chan struct{}
+	bus                   chan *payload
+	handlers              map[string]Consumer[[]byte]
+	deadLetterQueueTopics map[string]string
+	writer                *Producer
+	chanResult            chan Result
+	workerTable           map[string]*workerInfo
+	groupID               string
+	prefixPath            string
+	topics                []string
+	wg                    sync.WaitGroup
+	retries               int
+	workers               int
+	workerTimeout         time.Duration
 }
 
 func NewManager(
@@ -55,12 +55,16 @@ func NewManager(
 	if err != nil {
 		return nil, err
 	}
+	_, filePath, _, _ := runtime.Caller(0)
+	filePath = filePath[:len(filePath)-len("pkg/kafka/manager.go")]
 
 	m := &Manager{
-		reader:   c,
-		groupID:  groupID,
-		workers:  100,
-		handlers: map[string]Consumer[[]byte]{},
+		prefixPath:            filePath,
+		reader:                c,
+		groupID:               groupID,
+		workers:               100,
+		handlers:              make(map[string]Consumer[[]byte], 1),
+		deadLetterQueueTopics: make(map[string]string, 1),
 		workerPool: sync.Pool{New: func() any {
 			return new(workerInfo)
 		}},
@@ -89,9 +93,12 @@ func (s *Manager) WithChanResult() chan Result {
 	return s.chanResult
 }
 
-func (s *Manager) RegisterTopic(topic string, handler Consumer[[]byte]) {
+func (s *Manager) RegisterTopic(topic string, handler Consumer[[]byte], deadLetterQueueTopic ...string) {
 	if _, ok := s.handlers[topic]; !ok {
 		s.topics = append(s.topics, topic)
+	}
+	if len(deadLetterQueueTopic) > 0 {
+		s.deadLetterQueueTopics[topic] = deadLetterQueueTopic[0]
 	}
 	s.handlers[topic] = handler
 }
@@ -148,6 +155,7 @@ func (s *Manager) Run() error {
 			}
 			p.rawValue = m.Value
 			p.topic = *m.TopicPartition.Topic
+			p.deadLetterQueue = s.deadLetterQueueTopics[p.topic]
 			s.bus <- &p
 		}
 	}
@@ -184,7 +192,7 @@ func (s *Manager) populateWorkers() {
 				info.cancelFunc = cancel
 				s.workerTable[info.ctxID] = info
 				s.wg.Add(1)
-				go func(rawValue []byte, topic, retry, deadLetterQueue string) {
+				go func(rawValue []byte, topic, deadLetterQueue string) {
 					defer func() {
 						cancel()
 						s.wg.Done()
@@ -202,34 +210,25 @@ func (s *Manager) populateWorkers() {
 						}
 						return
 					}
+					var pl any
+					var chain string
+					if plErr := new(pkgerr.Error); errors.As(err, &plErr) {
+						pl = plErr.Payload()
+						chain = plErr.Chain()
+					}
 					s.chanResult <- Result{
 						err:   err,
 						ctx:   c,
 						msg:   rawValue,
 						topic: topic,
+						value: pl,
+						chain: chain,
 					}
 
-					switch topic {
-					case topic:
-						if retry == "" || s.writer == nil {
-							break
-						}
-
-						_ = s.writer.Produce(MsgRetry{
-							Topic:   retry,
-							Payload: rawValue,
-						})
-					case retry:
-						if deadLetterQueue == "" || s.writer == nil {
-							break
-						}
-
-						_ = s.writer.Produce(MsgErr{
-							Payload: deadLetterQueue,
-							Err:     err.Error(),
-						})
+					if deadLetterQueue != "" && s.writer != nil {
+						_ = s.writer.ProduceBytes(rawValue, deadLetterQueue)
 					}
-				}(pl.rawValue, pl.topic, pl.retry, pl.deadLetterQueue)
+				}(pl.rawValue, pl.topic, pl.deadLetterQueue)
 			}
 		}
 	}
@@ -242,11 +241,11 @@ func (s *Manager) retryIfFail(ctx context.Context, info *workerInfo) error {
 	if s.retries > 0 {
 		retries = s.retries
 	}
-	errs := make([]error, 0, retries)
+	errs := make([]error, 0, retries+1)
 	for retry := 0; retry <= retries; retry += 1 {
 		handler, ok := s.handlers[info.topic]
 		if !ok {
-			return fmt.Errorf("unable to find handler for %v topic", info.topic)
+			return fmt.Errorf("unable to find handler for %s topic", info.topic)
 		}
 		err := handler.Consume(ctx, info.rawValue)
 		if err == nil {
@@ -273,13 +272,15 @@ func (s *Manager) recoverIfPanic(ctx context.Context, info *workerInfo) (errCons
 		}
 		chain := make([]string, 0, 2)
 		for skip := 2; skip < 4; skip += 1 {
-			pc, file, line, ok := runtime.Caller(skip)
+			_, file, line, ok := runtime.Caller(skip)
 			if !ok {
 				break
 			}
+			if len(file) > len(s.prefixPath) {
+				file = file[len(s.prefixPath):]
+			}
 			chain = append(chain, fmt.Sprintf(
-				"%s (%s:%d)",
-				runtime.FuncForPC(pc).Name(),
+				"%s:%d",
 				file,
 				line,
 			))
@@ -305,6 +306,9 @@ func (s *Manager) close() error {
 	if s.chanResult != nil {
 		close(s.chanResult)
 	}
-
-	return s.reader.Close()
+	if s.writer != nil {
+		s.writer.Close()
+	}
+	_ = s.reader.Close()
+	return nil
 }

@@ -17,6 +17,7 @@ type (
 		err   error
 		value any
 		topic string
+		chain string
 		msg   []byte
 	}
 	MsgErr struct {
@@ -46,4 +47,7 @@ func (s *Result) Topic() string {
 }
 func (s *Result) Value() any {
 	return s.value
+}
+func (s *Result) Chain() string {
+	return s.chain
 }

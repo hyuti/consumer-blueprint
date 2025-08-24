@@ -3,8 +3,11 @@ package kafka
 import (
 	"context"
 	"encoding/json"
+	"errors"
 
 	"github.com/confluentinc/confluent-kafka-go/kafka"
+	pkgerr "github.com/hyuti/consumer-blueprint/pkg/error"
+	"google.golang.org/protobuf/proto"
 )
 
 type (
@@ -17,14 +20,22 @@ type (
 		Serialize(ctx context.Context, rawValue []byte) (T, error)
 	}
 
+	ProtobufSerializer[T any] interface {
+		Consumer[T]
+		Serialize(ctx context.Context, rawValue []byte) (T, error)
+	}
+
 	JsonConsumer[T any] struct {
+		handler Consumer[T]
+	}
+
+	ProtobufConsumer[T proto.Message] struct {
 		handler Consumer[T]
 	}
 
 	payload struct {
 		value           any
 		topic           string
-		retry           string
 		deadLetterQueue string
 		rawValue        []byte
 	}
@@ -53,9 +64,11 @@ func HealthCheck(url string) error {
 }
 
 func NewJsonConsumer[T any](handler Consumer[T]) *JsonConsumer[T] {
-	return &JsonConsumer[T]{
-		handler: handler,
-	}
+	return &JsonConsumer[T]{handler: handler}
+}
+
+func NewProtobufConsumer[T proto.Message](handler Consumer[T]) *ProtobufConsumer[T] {
+	return &ProtobufConsumer[T]{handler: handler}
 }
 
 var _ Consumer[[]byte] = (*JsonConsumer[any])(nil)
@@ -65,10 +78,42 @@ func (c *JsonConsumer[T]) Consume(ctx context.Context, msg []byte) error {
 	if err != nil {
 		return err
 	}
-	return c.handler.Consume(ctx, value)
+
+	if err = c.handler.Consume(ctx, value); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (c *JsonConsumer[T]) Serialize(ctx context.Context, rawValue []byte) (t T, err error) {
 	err = json.Unmarshal(rawValue, &t)
 	return t, err
+}
+
+func (c *ProtobufConsumer[T]) Consume(ctx context.Context, msg []byte) error {
+	value, err := c.Serialize(ctx, msg)
+	if err != nil {
+		err = pkgerr.ErrInternalServer(err,
+			pkgerr.WithPayloadOpt(msg),
+			pkgerr.WithChainOpt("c.Serialize"),
+			pkgerr.ErrFuncTriggerOpt("c.Serialize"))
+		return err
+	}
+
+	if err = c.handler.Consume(ctx, value); err != nil {
+		if errors.As(err, new(pkgerr.Error)) {
+			return err
+		}
+		err = pkgerr.ErrInternalServer(err,
+			pkgerr.WithPayloadOpt(value),
+			pkgerr.WithChainOpt("c.handler.Consume"),
+			pkgerr.ErrFuncTriggerOpt("c.handler.Consume"))
+
+		return err
+	}
+	return nil
+}
+
+func (c *ProtobufConsumer[T]) Serialize(ctx context.Context, rawValue []byte) (t T, err error) {
+	return t, proto.Unmarshal(rawValue, t)
 }

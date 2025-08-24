@@ -61,7 +61,7 @@ You can learn it by finding an example in the template. You must register a topi
 in ``` main.go ``` ( right after you finished writing logics for an use case ). For example:
 
 ```go
-registra.RegisterTopic(cfg.Kafka.Topic, kafka.NewFreeConsumerAdapter(h1))
+registra.RegisterTopic(cfg.Kafka.Topic, kafka.NewJsonConsumer(h1))
 ```
 
 But don't forget to initialize that use case before registering handler.

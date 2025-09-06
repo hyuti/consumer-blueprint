@@ -62,7 +62,6 @@ func NewManager(
 		prefixPath:            filePath,
 		reader:                c,
 		groupID:               groupID,
-		workers:               100,
 		handlers:              make(map[string]Consumer[[]byte], 1),
 		deadLetterQueueTopics: make(map[string]string, 1),
 		workerPool: sync.Pool{New: func() any {
@@ -118,6 +117,10 @@ func (s *Manager) Run() error {
 	if s.workerTimeout == 0 {
 		s.workerTimeout = time.Minute
 	}
+	if s.workers == 0 {
+		s.workers = 10
+	}
+
 	s.bus = make(chan *payload, 1)
 	s.workerCounter = make(chan struct{}, s.workers)
 	s.workerTable = make(map[string]*workerInfo, s.workers)
@@ -247,11 +250,11 @@ func (s *Manager) retryIfFail(ctx context.Context, info *workerInfo) error {
 		if !ok {
 			return fmt.Errorf("unable to find handler for %s topic", info.topic)
 		}
-		err := handler.Consume(ctx, info.rawValue)
-		if err == nil {
-			return nil
+		if err := handler.Consume(ctx, info.rawValue); err != nil {
+			errs = append(errs, err)
+			continue
 		}
-		errs = append(errs, err)
+		return nil
 	}
 	return errors.Join(errs...)
 }
@@ -262,13 +265,9 @@ func (s *Manager) recoverIfPanic(ctx context.Context, info *workerInfo) (errCons
 		if r == nil {
 			return
 		}
-		err, ok := r.(error)
-		if !ok {
-			err = errors.New("error internal server")
-			errMsg, ok := r.(string)
-			if ok {
-				err = errors.New(errMsg)
-			}
+		err := errors.New("error internal server")
+		if v, ok := r.(string); ok {
+			err = errors.New(v)
 		}
 		chain := make([]string, 0, 2)
 		for skip := 2; skip < 4; skip += 1 {

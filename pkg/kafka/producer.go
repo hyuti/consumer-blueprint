@@ -18,10 +18,7 @@ func (s *Producer) Produce(msg MsgNameType) error {
 	if !ok {
 		return fmt.Errorf("unable to find topic for %v msg", msg.Name())
 	}
-	m := MsgFrame[MsgNameType]{
-		Payload: msg,
-	}
-	b, err := json.Marshal(m)
+	b, err := json.Marshal(msg)
 	if err != nil {
 		return err
 	}

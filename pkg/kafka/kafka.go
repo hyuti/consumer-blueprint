@@ -5,9 +5,6 @@ import (
 )
 
 type (
-	MsgFrame[T any] struct {
-		Payload T `json:"payload"`
-	}
 	MsgNameType interface {
 		Name() string
 	}

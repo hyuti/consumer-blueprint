@@ -2,8 +2,6 @@ module github.com/hyuti/consumer-blueprint
 
 go 1.24.0
 
-toolchain go1.24.4
-
 require (
 	github.com/bufbuild/protovalidate-go v0.6.0
 	github.com/confluentinc/confluent-kafka-go v1.9.2

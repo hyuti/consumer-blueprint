@@ -55,11 +55,12 @@ func (g *Gru) Run() error {
 	var wg sync.WaitGroup
 
 	wg.Add(len(g.asyncBeforeRun))
-	for _, run := range g.asyncBeforeRun {
-		go func(f func()) {
+	for idx := range g.asyncBeforeRun {
+		runner := g.asyncBeforeRun[idx]
+		go func() {
 			defer wg.Done()
-			f()
-		}(run)
+			runner()
+		}()
 	}
 
 	wg.Add(1)
@@ -80,19 +81,19 @@ func (g *Gru) Run() error {
 			if v == nil {
 				v = string(result.Msg())
 			}
-			g.logger.InfoContext(result.Ctx(),
-				"consumed",
-				"payload", v,
-				"topic", result.Topic())
 			if result.Error() == nil {
+				g.logger.InfoContext(result.Ctx(),
+					"success",
+					"payload", v,
+					"topic", result.Topic())
 				continue
 			}
 			g.logger.ErrorContext(
 				result.Ctx(),
-				"failed",
-				"err", result.Error(),
+				result.Error().Error(),
 				"topic", result.Topic(),
 				"chain", result.Chain(),
+				"payload", v,
 			)
 			g.onErr(result)
 		case <-sigchan:
@@ -104,7 +105,7 @@ func (g *Gru) Run() error {
 	return nil
 }
 
-// RunWeak depends on others to shut down. See Run for completely controlling shut down.
+// RunWeak depends on callers to shut down. See Run for completely controlling shut down.
 func (g *Gru) RunWeak() error {
 	if g.ch == nil {
 		_ = g.WithChanResult()
@@ -118,11 +119,12 @@ func (g *Gru) RunWeak() error {
 
 	var wg sync.WaitGroup
 	wg.Add(len(g.asyncBeforeRun))
-	for _, run := range g.asyncBeforeRun {
-		go func(f func()) {
+	for idx := range g.asyncBeforeRun {
+		runner := g.asyncBeforeRun[idx]
+		go func() {
 			defer wg.Done()
-			f()
-		}(run)
+			runner()
+		}()
 	}
 
 	wg.Add(1)

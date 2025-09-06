@@ -98,7 +98,6 @@ func (g *Gru) Run() error {
 			close(g.ch)
 			wg.Wait()
 			run = false
-			break
 		}
 	}
 	return nil

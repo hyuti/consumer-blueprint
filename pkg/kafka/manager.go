@@ -138,28 +138,29 @@ func (s *Manager) Run() error {
 			run = false
 		default:
 			m, err := s.reader.ReadMessage(100)
-			if err != nil && err.(kafka.Error).Code() == kafka.ErrTimedOut {
-				continue
-			}
-			c := ctxPkg.WithCtxID(ctxPkg.New())
-			if err != nil {
-				s.chanResult <- Result{
-					err: fmt.Errorf("%s: %w", s.groupID, err),
-					ctx: c,
+			c := ctxPkg.WithCtxID(context.Background())
+			if err == nil {
+				if m.TopicPartition.Topic == nil {
+					s.chanResult <- Result{
+						err: errors.New("topic expected not to be empty"),
+						ctx: c,
+					}
+					continue
 				}
+				p.rawValue = m.Value
+				p.topic = *m.TopicPartition.Topic
+				p.deadLetterQueue = s.deadLetterQueueTopics[p.topic]
+				s.bus <- &p
 				continue
 			}
-			if m.TopicPartition.Topic == nil {
-				s.chanResult <- Result{
-					err: errors.New("topic expected not to be empty"),
-					ctx: c,
-				}
+			if err.(kafka.Error).Code() == kafka.ErrTimedOut {
 				continue
 			}
-			p.rawValue = m.Value
-			p.topic = *m.TopicPartition.Topic
-			p.deadLetterQueue = s.deadLetterQueueTopics[p.topic]
-			s.bus <- &p
+			s.chanResult <- Result{
+				err: fmt.Errorf("%s: %w", s.groupID, err),
+				ctx: c,
+			}
+			continue
 		}
 	}
 	return nil
@@ -185,7 +186,7 @@ func (s *Manager) populateWorkers() {
 			case pl := <-s.bus:
 				s.workerCounter <- struct{}{}
 
-				c := ctxPkg.WithCtxID(ctxPkg.New())
+				c := ctxPkg.WithCtxID(context.Background())
 				c, cancel := context.WithTimeout(c, s.workerTimeout)
 				info := s.workerPool.Get().(*workerInfo)
 				info.ctx = c

@@ -51,8 +51,7 @@ func NewProducer(broker string, opts ...func(*kafka.ConfigMap) error) (*Producer
 		"linger.ms":         5,
 	}
 	for _, opt := range opts {
-		err := opt(cfg)
-		if err != nil {
+		if err := opt(cfg); err != nil {
 			return nil, err
 		}
 	}

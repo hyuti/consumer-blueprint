@@ -40,16 +40,9 @@ func WithCtxID(ctx context.Context) context.Context {
 }
 
 func GetCtxID(ctx context.Context) string {
-	v, ok := ctx.Value(CtxIDKey).(string)
-	if !ok {
-		v = ""
-	}
+	v, _ := ctx.Value(CtxIDKey).(string)
 	return v
 }
 func SetCtxID(ctx context.Context, v string) context.Context {
 	return context.WithValue(ctx, CtxIDKey, v)
-}
-
-func New() context.Context {
-	return context.Background()
 }

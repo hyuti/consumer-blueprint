@@ -13,7 +13,7 @@ func WithKafMan(cfg *config.Config) (*kafka.Manager, error) {
 		fmt.Sprintf("%v.consumer", cfg.App.Name),
 		cfg.Kafka.Broker,
 		func(cf *builtIn.ConfigMap) error {
-			return SharedKafkaConfigs(cf,
+			return sharedKafkaConfigs(cf,
 				cfg.Kafka.Username,
 				cfg.Kafka.Password,
 				cfg.Kafka.Protocol,

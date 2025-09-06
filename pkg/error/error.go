@@ -77,13 +77,9 @@ func (e *Error) Chain() string {
 
 func (e *Error) Get(key string, value ...any) any {
 	v, ok := e.extra[key]
-	if ok {
-		return v
-	}
-	if len(value) > 0 {
+	if !ok && len(value) > 0 {
 		v = value[0]
 	}
-	e.extra[key] = v
 	return v
 }
 

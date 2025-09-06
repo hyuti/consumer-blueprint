@@ -70,10 +70,8 @@ func (g *Gru) Run() error {
 	}()
 
 	g.logger.Info("Start listening...")
-
 	sigchan := make(chan os.Signal, 1)
 	signal.Notify(sigchan, syscall.SIGINT, syscall.SIGTERM)
-
 	for run := true; run; {
 		select {
 		case result := <-g.ch:
@@ -81,25 +79,26 @@ func (g *Gru) Run() error {
 			if v == nil {
 				v = string(result.Msg())
 			}
-			if result.Error() == nil {
-				g.logger.InfoContext(result.Ctx(),
-					"success",
+			if result.Error() != nil {
+				g.logger.ErrorContext(
+					result.Ctx(),
+					result.Error().Error(),
+					"topic", result.Topic(),
+					"chain", result.Chain(),
 					"payload", v,
-					"topic", result.Topic())
+				)
+				g.onErr(result)
 				continue
 			}
-			g.logger.ErrorContext(
-				result.Ctx(),
-				result.Error().Error(),
-				"topic", result.Topic(),
-				"chain", result.Chain(),
+			g.logger.InfoContext(result.Ctx(),
+				"success",
 				"payload", v,
-			)
-			g.onErr(result)
+				"topic", result.Topic())
 		case <-sigchan:
 			close(g.ch)
 			wg.Wait()
 			run = false
+			break
 		}
 	}
 	return nil
@@ -139,21 +138,21 @@ func (g *Gru) RunWeak() error {
 		if v == nil {
 			v = string(result.Msg())
 		}
-		if result.Error() == nil {
-			g.logger.InfoContext(result.Ctx(),
-				"success",
+		if result.Error() != nil {
+			g.logger.ErrorContext(
+				result.Ctx(),
+				result.Error().Error(),
+				"topic", result.Topic(),
+				"chain", result.Chain(),
 				"payload", v,
-				"topic", result.Topic())
+			)
+			g.onErr(result)
 			continue
 		}
-		g.logger.ErrorContext(
-			result.Ctx(),
-			result.Error().Error(),
-			"topic", result.Topic(),
-			"chain", result.Chain(),
+		g.logger.InfoContext(result.Ctx(),
+			"success",
 			"payload", v,
-		)
-		g.onErr(result)
+			"topic", result.Topic())
 	}
 	wg.Wait()
 	return nil

@@ -73,4 +73,3 @@ h1 := usecase.NewUseCase(a.Logger)
 ## Todo
 
 * Consumer of Dead Letter Queue Topic
-* Consumer of Retry Topic

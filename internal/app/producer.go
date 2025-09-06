@@ -11,7 +11,7 @@ import (
 
 func WithProd(cfg *config.Config) (*kafka.Producer, error) {
 	prod, err := kafka.NewProducer(cfg.Kafka.Broker, func(configMap *builtIn.ConfigMap) error {
-		return SharedKafkaConfigs(configMap,
+		return sharedKafkaConfigs(configMap,
 			cfg.Kafka.Username,
 			cfg.Kafka.Password,
 			cfg.Kafka.Protocol,
@@ -31,7 +31,7 @@ func Prod() *kafka.Producer {
 	return app.prod
 }
 
-func SharedKafkaConfigs(
+func sharedKafkaConfigs(
 	conf *builtIn.ConfigMap,
 	username, password, protocol, mechanisms string) error {
 	if username == "" || password == "" {

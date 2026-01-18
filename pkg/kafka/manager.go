@@ -124,14 +124,11 @@ func (s *Manager) Run() error {
 	s.bus = make(chan *payload, 1)
 	s.workerCounter = make(chan struct{}, s.workers)
 	s.workerTable = make(map[string]*workerInfo, s.workers)
-
-	s.populateWorkers()
 	defer s.close()
 
 	sigchan := make(chan os.Signal, 1)
 	signal.Notify(sigchan, syscall.SIGINT, syscall.SIGTERM)
-
-	p := payload{}
+	pl := payload{}
 	for run := true; run; {
 		select {
 		case <-sigchan:
@@ -139,28 +136,27 @@ func (s *Manager) Run() error {
 		default:
 			m, err := s.reader.ReadMessage(100)
 			c := ctxPkg.WithCtxID(context.Background())
-			if err == nil {
-				if m.TopicPartition.Topic == nil {
-					s.chanResult <- Result{
-						err: errors.New("topic expected not to be empty"),
-						ctx: c,
-					}
+			if err != nil {
+				if err.(kafka.Error).Code() == kafka.ErrTimedOut {
 					continue
 				}
-				p.rawValue = m.Value
-				p.topic = *m.TopicPartition.Topic
-				p.deadLetterQueue = s.deadLetterQueueTopics[p.topic]
-				s.bus <- &p
+				s.chanResult <- Result{
+					err: fmt.Errorf("%s: %w", s.groupID, err),
+					ctx: c,
+				}
 				continue
 			}
-			if err.(kafka.Error).Code() == kafka.ErrTimedOut {
+			if m.TopicPartition.Topic == nil {
+				s.chanResult <- Result{
+					err: errors.New("topic expected not to be empty"),
+					ctx: c,
+				}
 				continue
 			}
-			s.chanResult <- Result{
-				err: fmt.Errorf("%s: %w", s.groupID, err),
-				ctx: c,
-			}
-			continue
+			pl.rawValue = m.Value
+			pl.topic = *m.TopicPartition.Topic
+			pl.deadLetterQueue = s.deadLetterQueueTopics[pl.topic]
+			s.execute(pl)
 		}
 	}
 	return nil
@@ -174,70 +170,56 @@ type workerInfo struct {
 	rawValue   []byte
 }
 
-func (s *Manager) populateWorkers() {
-	sigchan := make(chan os.Signal, 1)
-	signal.Notify(sigchan, syscall.SIGINT, syscall.SIGTERM)
-	exe := func() {
-		defer s.wg.Done()
-		for {
-			select {
-			case <-sigchan:
-				return
-			case pl := <-s.bus:
-				s.workerCounter <- struct{}{}
+func (s *Manager) execute(pl payload) {
+	s.workerCounter <- struct{}{}
 
-				c := ctxPkg.WithCtxID(context.Background())
-				c, cancel := context.WithTimeout(c, s.workerTimeout)
-				info := s.workerPool.Get().(*workerInfo)
-				info.ctx = c
-				info.rawValue = pl.rawValue
-				info.topic = pl.topic
-				info.ctxID = ctxPkg.GetCtxID(c)
-				info.cancelFunc = cancel
-				s.workerTable[info.ctxID] = info
-				s.wg.Add(1)
-				go func(rawValue []byte, topic, deadLetterQueue string) {
-					defer func() {
-						cancel()
-						s.wg.Done()
-						s.workerPool.Put(info)
-						delete(s.workerTable, info.ctxID)
-						<-s.workerCounter
-					}()
-					err := s.recoverIfPanic(c, info)
-					if err == nil {
-						s.chanResult <- Result{
-							err:   nil,
-							ctx:   c,
-							msg:   rawValue,
-							topic: topic,
-						}
-						return
-					}
-					var pl any
-					var chain string
-					if plErr := new(pkgerr.Error); errors.As(err, &plErr) {
-						pl = plErr.Payload()
-						chain = plErr.Chain()
-					}
-					s.chanResult <- Result{
-						err:   err,
-						ctx:   c,
-						msg:   rawValue,
-						topic: topic,
-						value: pl,
-						chain: chain,
-					}
-
-					if deadLetterQueue != "" && s.writer != nil {
-						_ = s.writer.ProduceBytes(rawValue, deadLetterQueue)
-					}
-				}(pl.rawValue, pl.topic, pl.deadLetterQueue)
-			}
-		}
-	}
+	c := ctxPkg.WithCtxID(context.Background())
+	c, cancel := context.WithTimeout(c, s.workerTimeout)
+	info := s.workerPool.Get().(*workerInfo)
+	info.ctx = c
+	info.rawValue = pl.rawValue
+	info.topic = pl.topic
+	info.ctxID = ctxPkg.GetCtxID(c)
+	info.cancelFunc = cancel
+	s.workerTable[info.ctxID] = info
 	s.wg.Add(1)
-	go exe()
+	go func(rawValue []byte, topic, deadLetterQueue string) {
+		defer func() {
+			cancel()
+			s.wg.Done()
+			s.workerPool.Put(info)
+			delete(s.workerTable, info.ctxID)
+			<-s.workerCounter
+		}()
+		err := s.recoverIfPanic(c, info)
+		if err == nil {
+			s.chanResult <- Result{
+				err:   nil,
+				ctx:   c,
+				msg:   rawValue,
+				topic: topic,
+			}
+			return
+		}
+		var pl any
+		var chain string
+		if plErr := new(pkgerr.Error); errors.As(err, &plErr) {
+			pl = plErr.Payload()
+			chain = plErr.Chain()
+		}
+		s.chanResult <- Result{
+			err:   err,
+			ctx:   c,
+			msg:   rawValue,
+			topic: topic,
+			value: pl,
+			chain: chain,
+		}
+
+		if deadLetterQueue != "" && s.writer != nil {
+			_ = s.writer.ProduceBytes(rawValue, deadLetterQueue)
+		}
+	}(pl.rawValue, pl.topic, pl.deadLetterQueue)
 }
 
 func (s *Manager) retryIfFail(ctx context.Context, info *workerInfo) error {

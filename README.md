@@ -1,6 +1,9 @@
 # Golang Consumer Template
 
 A template influenced Clean Architecture featuring in EDA (Event Driven Architecture) systems.
+Featuring patterns:
+* FanIn FanOut
+* Worker Pool
 
 ## Getting started
 
